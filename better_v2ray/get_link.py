@@ -11,6 +11,7 @@ import requests
 import socks
 
 from better_v2ray.models import SubscriptionModel
+from django_on_nas.settings import logger
 from local_settings import bwg, template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, DOWNLOAD_SPEED, VALID_PROTOCOL, \
     ONLINE_URLS
 
@@ -21,17 +22,6 @@ def gen_update_time(str_time):
     str_content = json.dumps(json_content)
     link_with_update_time = str(b'vmess://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
     return link_with_update_time
-
-
-def print_with_color(color: str, content):
-    if color.lower() == 'green':
-        print('\033[92m' + content + '\033[0m')
-    elif color.lower() == 'red':
-        print('\033[91m' + content + '\033[0m')
-    elif color.lower() == 'yellow':
-        print('\033[93m' + content + '\033[0m')
-    else:
-        print(content)
 
 
 def read_vmess(splited_url):
@@ -71,7 +61,7 @@ def read_vmess(splited_url):
                   }, }
         return config
     except Exception as e:
-        print(e)
+        logger.error(e)
         return None
 
 
@@ -115,7 +105,7 @@ def read_ss(splited_url):
         }
         return config
     except Exception as e:
-        print(e)
+        logger.error(e)
         return None
 
 
@@ -144,7 +134,7 @@ def read_trojan(splited_url):
                   }, }
         return config
     except Exception as e:
-        print(e)
+        logger.error(e)
         return None
 
 
@@ -189,7 +179,7 @@ def read_vless(splited_url):
                   }, }
         return config
     except Exception as e:
-        print(e)
+        logger.error(e)
         return None
 
 
@@ -205,17 +195,16 @@ def read_content(share_links) -> list:
             url_split = urlsplit(link)
             protocol = url_split.scheme
             if protocol in VALID_PROTOCOL:
-                # eval_cmd = 'read_%s(%s)' % (protocol, url_split)
                 config = eval('read_' + protocol)(url_split)
                 tmp = {'source_url': item.get('source_url'), 'share_link': link, 'config': config}
                 link_with_config.append(tmp)
             else:
-                print('protocol not supported')
+                logger.info('protocol %s not supported' % protocol)
     return link_with_config
 
 
 def set_config(config: dict, config_file='/usr/local/etc/v2ray/config.json'):
-    print_with_color('yellow', 'set config and restart v2ray')
+    logger.info('set config and restart v2ray')
     if config:
         protocol = config.get('protocol')
         temp = template.get(protocol)
@@ -235,7 +224,7 @@ def set_config(config: dict, config_file='/usr/local/etc/v2ray/config.json'):
 
 
 def get_web_speed():
-    print_with_color('yellow', 'testing web speed ...')
+    logger.info('testing web speed ...')
     start = time.time()
     socks.setdefaultproxy(socks.SOCKS5, '127.0.0.1', 2333)
     socket.socket = socks.socksocket
@@ -243,14 +232,14 @@ def get_web_speed():
     try:
         requests.get(url, timeout=TIME_LIMIT)
     except Exception as e:
-        print(e)
+        logger.error(e)
         return 10
     end = time.time()
     return end - start
 
 
 def get_download_speed():
-    print_with_color('yellow', 'testing download speed ...')
+    logger.info('testing download speed ...')
     cmd = 'curl -m' + str(
         TIME_LIMIT) + ' -x socks5://127.0.0.1:2333 -Lo /dev/null -skw "%{speed_download}\n" http://cachefly.cachefly.net/10mb.test'
     p = os.popen(cmd)
@@ -267,16 +256,16 @@ def get_best_config(share_links) -> dict:
     total_config_number = len(link_with_config)
     for i in range(total_config_number):
         tmp = link_with_config[i]
-        print_with_color('red', 'testing config %s/%s' % (i, total_config_number))
+        logger.info('testing config %s/%s' % (i, total_config_number))
         set_config(tmp.get('config'))
         web_speed = get_web_speed()
         if web_speed < WEB_SPEED:
-            print_with_color('yellow', 'web_speed--> %s' % web_speed)
+            logger.info('web_speed--> %s' % web_speed)
             download_speed = get_download_speed()
             status = 1
             if download_speed > DOWNLOAD_SPEED:
-                print_with_color('yellow', 'download_speed--> %s' % download_speed)
-                print_with_color('green', 'find a fast link, add to best_links--> %s' % tmp.get('share_link'))
+                logger.info('download_speed--> %s' % download_speed)
+                logger.info('find a fast link, add to best_links--> %s' % tmp.get('share_link'))
                 best_links[tmp.get('share_link')] = download_speed
                 status = 0
             SubscriptionModel(
@@ -308,7 +297,7 @@ def gen_subscribe(urls, n):
 
 
 def set_default_v2ray():
-    print_with_color('yellow', 'call method set_default_v2ray')
+    logger.info('set_default_v2ray')
     set_config(bwg)
 
 
@@ -324,7 +313,7 @@ def get_return_content(url):
 def main(link_num=10):
     set_default_v2ray()
     c = gen_subscribe(ONLINE_URLS, link_num)
-    print(c)
+    logger.info(c)
 
 
 if __name__ == '__main__':

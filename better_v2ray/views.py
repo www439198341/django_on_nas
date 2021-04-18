@@ -6,9 +6,10 @@ from django.db.models import Avg
 from django.http import HttpResponse
 
 from better_v2ray.get_link import get_web_speed, set_config, WEB_SPEED, get_download_speed, \
-    set_default_v2ray, get_share_links, get_return_content, get_best_config, print_with_color
+    set_default_v2ray, get_share_links, get_return_content, get_best_config
 from better_v2ray.models import SubscriptionModel
 # Create your views here.
+from django_on_nas.settings import logger
 from local_settings import ONLINE_URLS
 
 
@@ -32,8 +33,7 @@ def get_subscription_link(request):
         quality = int(quality)
     else:
         quality = 0
-    print_with_color('green', 'num-->%s' % num)
-    print_with_color('green', 'quality-->%s' % quality)
+    logger.info('num-->%s, quality-->%s' % (num, quality))
     configs = SubscriptionModel.objects.filter(status__lte=quality).order_by('-download_speed')[:num]
 
     link_str = '%s\n' % gen_update_time() + '\n'.join(config.link for config in configs)
@@ -50,7 +50,7 @@ def renew():
     avg_dl_speed = SubscriptionModel.objects.filter(status=0).aggregate(Avg('download_speed')).get(
         'download_speed__avg') or 0
     for index, config in enumerate(configs):
-        print_with_color('red', 'testing config %s/%s' % (index, len(configs)))
+        logger.info('testing config %s/%s' % (index, len(configs)))
         set_config(eval(config.config))
         before_status = config.status
         web_speed = get_web_speed()
@@ -60,7 +60,7 @@ def renew():
             if download_speed > avg_dl_speed:
                 config.download_speed = (config.download_speed + download_speed) / 2
                 config.status = 0
-                print_with_color('green', 'updated speed with download_speed %s' % config.download_speed)
+                logger.info('updated speed with download_speed %s' % config.download_speed)
             else:
                 config.status = 1
         elif web_speed == 10:
@@ -68,14 +68,7 @@ def renew():
         else:
             config.status = 1
         # 根据状态前后变化，进行不同颜色的打印
-        if before_status == 0 and config.status == 1:
-            print_with_color('yellow', 'config updated set status 1')
-        elif before_status == 0 and config.status == 2:
-            print_with_color('red', 'config updated set status 2')
-        elif before_status == 1 and config.status == 0:
-            print_with_color('green', 'config updated set status 0')
-        elif before_status == 1 and config.status == 2:
-            print_with_color('red', 'config updated set status 2')
+        logger.info('config updated set status %s' % config.status)
         config.save()
 
 

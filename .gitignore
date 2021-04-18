@@ -4,3 +4,4 @@ venv
 better_v2ray/migrations
 better_v2ray/tests.py
 local_settings.py
+*.log

@@ -18,6 +18,7 @@ pycparser==2.20
 PySocks==1.7.1
 python-socks==1.2.3
 pytz==2021.1
+PyYAML==5.4.1
 redis==3.5.3
 requests==2.25.1
 six==1.15.0

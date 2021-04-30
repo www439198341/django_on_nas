@@ -1,16 +1,18 @@
 import base64
 import json
+import os
 import time
 
 from django.db.models import Avg
-from django.http import HttpResponse
+from django.http import HttpResponse, FileResponse
 
+from better_v2ray.convert2clash import get_proxies, get_default_config, add_proxies_to_model, save_config
 from better_v2ray.get_link import get_web_speed, set_config, WEB_SPEED, get_download_speed, \
     set_default_v2ray, get_share_links, get_return_content, get_best_config
 from better_v2ray.models import SubscriptionModel
 # Create your views here.
-from django_on_nas.settings import logger
-from local_settings import ONLINE_URLS
+from django_on_nas.settings import logger, BASE_DIR
+from local_settings import ONLINE_URLS, SUB_URL
 
 
 def gen_update_time():
@@ -23,22 +25,31 @@ def gen_update_time():
 
 
 def get_subscription_link(request):
-    num = request.GET.get('num')
-    quality = request.GET.get('quality')
-    if not num:
-        num = 10
-    else:
-        num = int(num)
-    if quality:
-        quality = int(quality)
-    else:
-        quality = 0
+    num = int(request.GET.get('num', '10'))
+    quality = int(request.GET.get('quality', '0'))
+    target = request.GET.get('target', '')
     logger.info('num-->%s, quality-->%s' % (num, quality))
     configs = SubscriptionModel.objects.filter(status__lte=quality).order_by('-download_speed')[:num]
-
-    link_str = '%s\n' % gen_update_time() + '\n'.join(config.link for config in configs)
-    link_b64 = base64.b64encode(link_str.encode('utf-8'))
-    return HttpResponse(link_b64)
+    if target == 'clash':
+        sub_url = SUB_URL % (num, quality)
+        # 输出路径
+        config_path = os.path.join(BASE_DIR, 'template.yaml')
+        output_path = os.path.join(BASE_DIR, 'output.yaml')
+        node_list = get_proxies(sub_url)
+        default_config = get_default_config(config_path)
+        final_config = add_proxies_to_model(node_list, default_config)
+        save_config(output_path, final_config)
+        logger.info(f'文件已导出至 {output_path}')
+        file = open(output_path, 'rb')
+        response = FileResponse(file)
+        response['Content-Type'] = 'application/octet-stream'
+        response['Content-Disposition'] = 'attachment;filename="mine-online.yml"'
+        return response
+    else:
+        link_str = '%s\n' % gen_update_time() + '\n'.join(config.link for config in configs)
+        # link_str = '\n'.join(config.link for config in configs)
+        link_b64 = base64.b64encode(link_str.encode('utf-8'))
+        return HttpResponse(link_b64)
 
 
 def renew():

@@ -5,3 +5,6 @@ better_v2ray/migrations
 better_v2ray/tests.py
 local_settings.py
 *.log
+*.yaml
+__pycache__
+*/__pycache__

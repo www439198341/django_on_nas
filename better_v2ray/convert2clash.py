@@ -126,6 +126,28 @@ def decode_ssr_node(nodes):
     return proxy_list
 
 
+# 解析trojan节点
+def decode_trojan_node(nodes):
+    proxy_list = []
+    for node in nodes:
+        decode_proxy = node.decode('utf-8')[9:]
+        if not decode_proxy or decode_proxy.isspace():
+            log('trojan节点信息为空，跳过该节点')
+            continue
+        info = dict()
+        matcher = re.match(r'(.*?)@(.*):(.*)\?(.*)#(.*)', decode_proxy)
+        if matcher:
+            info['password'] = matcher.group(1)
+            info['server'] = matcher.group(2)
+            info['port'] = matcher.group(3)
+            info[matcher.group(4).split('=')[0]] = matcher.group(4).split('=')[1]
+            info['name'] = urllib.parse.unquote(matcher.group(5))
+        else:
+            continue
+        proxy_list.append(info)
+    return proxy_list
+
+
 # v2ray转换成Clash节点
 def v2ray_to_clash(arr):
     log('v2ray节点转换中...')
@@ -232,6 +254,35 @@ def ssr_to_clash(arr):
     return proxies
 
 
+# trojan转换成Clash节点
+def trojan_to_clash(arr):
+    log('trojan节点转换中...')
+    proxies = {
+        'proxy_list': [],
+        'proxy_names': []
+    }
+    i = 0
+    for item in arr:
+        obj = {
+            'name': (item.get('name').strip() if item.get('name') else '') + 'ss%s' % i,
+            'type': 'trojan',
+            'server': item.get('server'),
+            'port': int(item.get('port')),
+            'password': item.get('password'),
+            'sni': item.get('sni'),
+            'skip-cert-verify': False
+        }
+        for key in list(obj.keys()):
+            if obj.get(key) is None:
+                del obj[key]
+        if not obj['name'].startswith('剩余流量') and not obj['name'].startswith('过期时间'):
+            proxies['proxy_list'].append(obj)
+            proxies['proxy_names'].append(obj['name'])
+        i += 1
+    log('可用trojan节点{}个'.format(len(proxies['proxy_names'])))
+    return proxies
+
+
 # 获取订阅地址数据:
 def get_proxies(urls):
     url_list = urls.split(';')
@@ -283,6 +334,7 @@ def get_proxies(urls):
         v2ray_urls = []
         ss_urls = []
         ssr_urls = []
+        trojan_urls = []
         for node in nodes_list:
             if node.startswith(b'vmess://'):
                 v2ray_urls.append(node)
@@ -290,6 +342,8 @@ def get_proxies(urls):
                 ss_urls.append(node)
             elif node.startswith(b'ssr://'):
                 ssr_urls.append(node)
+            elif node.startswith(b'trojan://'):
+                trojan_urls.append(node)
             else:
                 pass
         clash_node = []
@@ -302,6 +356,9 @@ def get_proxies(urls):
         if len(ssr_urls) > 0:
             decode_proxy = decode_ssr_node(ssr_urls)
             clash_node = ssr_to_clash(decode_proxy)
+        if len(trojan_urls) > 0:
+            decode_proxy = decode_trojan_node(trojan_urls)
+            clash_node = trojan_to_clash(decode_proxy)
         proxy_list['proxy_list'].extend(clash_node['proxy_list'])
         proxy_list['proxy_names'].extend(clash_node['proxy_names'])
     log('共发现:{}个节点'.format(len(proxy_list['proxy_names'])))

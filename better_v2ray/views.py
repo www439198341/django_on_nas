@@ -12,14 +12,16 @@ from django_on_nas.settings import logger, BASE_DIR
 from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
 
 
-def gen_update_time():
-    json_content = {'v': '2', 'ps': '更新于:%s' % time.strftime("%m-%d %H:%M", time.localtime()), 'add': 'Flynn',
-                    'port': '3652', 'id': '6a3bcc08-9c77-4c02-844b-4a694c4f2fea', 'aid': '0', 'net': 'tcp',
-                    'type': 'none',
-                    'host': '', 'path': '', 'tls': '', 'sni': ''}
-    str_content = json.dumps(json_content)
-    link_with_update_time = str(b'vmess://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
-    return link_with_update_time
+def gen_update_time(return_type='base64'):
+    count = SubscriptionModel.objects.filter(status=0).count()
+    json_content = {'name': '更新:%s,可用%s' % (time.strftime("%m-%d %H:%M", time.localtime()), count), 'type': 'ss',
+                    'server': '10.10.10.10', 'port': '3652', 'cipher': 'aes-256-gcm', 'password': '1'}
+    if return_type == 'json':
+        return json_content
+    else:
+        str_content = json.dumps(json_content)
+        link_with_update_time = str(b'ss://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
+        return link_with_update_time
 
 
 def get_subscription_link(request):
@@ -36,6 +38,9 @@ def get_subscription_link(request):
         node_list = get_proxies(sub_url)
         default_config = get_default_config(config_path)
         final_config = add_proxies_to_model(node_list, default_config)
+        update_info = gen_update_time('json')
+        final_config.get('proxies').append(update_info)
+        final_config.get('proxy-groups')[0].get('proxies').append(update_info.get('name'))
         save_config(output_path, final_config)
         logger.info(f'文件已导出至 {output_path}')
         file = open(output_path, 'rb')

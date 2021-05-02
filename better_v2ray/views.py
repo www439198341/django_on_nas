@@ -9,7 +9,7 @@ from better_v2ray.convert2clash import get_proxies, get_default_config, add_prox
 from better_v2ray.get_link import get_share_links, get_config, renew
 from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger, BASE_DIR
-from local_settings import ONLINE_URLS, SUB_URL
+from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
 
 
 def gen_update_time():
@@ -51,7 +51,7 @@ def get_subscription_link(request):
 
 def is_renew():
     configs = SubscriptionModel.objects.filter(status=0)
-    if len(configs) < 5:
+    if len(configs) < GOOD_LINK_NUM:
         return True
     return False
 

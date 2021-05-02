@@ -229,7 +229,7 @@ def get_web_speed():
 def get_download_speed():
     logger.info('testing download speed ...')
     cmd = 'curl -m' + str(
-        TIME_LIMIT) + ' -x socks5://127.0.0.1:2333 -Lo /dev/null -skw "%{speed_download}\n" http://cachefly.cachefly.net/10mb.test'
+        TIME_LIMIT) + ' -x socks5://127.0.0.1:2333 -Lo /dev/null -skw "%{speed_download}\n" ' + DOWNLOAD_TEST_URL
     p = os.popen(cmd)
     result = p.readlines()
     if isinstance(result, list):

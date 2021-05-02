@@ -12,7 +12,8 @@ from django.db.models import Avg
 
 from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger
-from local_settings import template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, VALID_PROTOCOL
+from local_settings import template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, VALID_PROTOCOL, DELAY_TESTING_URL, \
+    DOWNLOAD_TEST_URL
 
 
 def read_vmess(splited_url):
@@ -214,14 +215,15 @@ def get_web_speed():
     start = time.time()
     socks.setdefaultproxy(socks.SOCKS5, '127.0.0.1', 2333)
     socket.socket = socks.socksocket
-    url = 'http://www.google.com'
     try:
-        requests.get(url, timeout=TIME_LIMIT)
+        requests.get(DELAY_TESTING_URL, timeout=TIME_LIMIT)
     except Exception as e:
         logger.error(e)
         return 10
     end = time.time()
-    return end - start
+    web_speed = end - start
+    logger.info('到%s的延迟为%.2fms' % (DELAY_TESTING_URL, web_speed * 1000))
+    return web_speed
 
 
 def get_download_speed():
@@ -232,7 +234,9 @@ def get_download_speed():
     result = p.readlines()
     if isinstance(result, list):
         download_speed = result[0].replace('\n', '')
+        logger.info('测试%s下载速度为%.2fMb/s' % (DOWNLOAD_TEST_URL, float(download_speed) / 1e6))
         return float(download_speed)
+    logger.info('测试下载超时')
     return 10
 
 
@@ -244,11 +248,14 @@ def get_config(share_links):
 
     # insert config info into db. set status = 3(not tested)
     link_with_config = read_content(share_links)
+    logger.info('共获得%s个配置' % len(link_with_config))
+    count = 0
     for item in link_with_config:
         if item and item.get('config'):
             md5_info = get_md5(json.dumps(item.get('config')))
             records = SubscriptionModel.objects.filter(md5_info=md5_info)
             if len(records) == 0:
+                count += 1
                 SubscriptionModel(
                     source=item.get('source_url'),
                     link=item.get('share_link'),
@@ -259,32 +266,36 @@ def get_config(share_links):
                     md5_info=md5_info
                 ).save()
                 logger.info('数据入库%s' % item)
+    logger.info('共入库%s条数据' % count)
 
 
-def renew():
+def renew(target_status: tuple, avg_status: tuple = (0,)):
     """
     对配置重新测速，并更新信息
     :return:
     """
-    configs = SubscriptionModel.objects.filter(status__in=(0, 1, 3))
-    avg_dl_speed = SubscriptionModel.objects.filter(status=0).aggregate(Avg('download_speed')).get(
+    configs = SubscriptionModel.objects.filter(status__in=target_status)
+    avg_dl_speed = SubscriptionModel.objects.filter(status__in=avg_status).aggregate(Avg('download_speed')).get(
         'download_speed__avg') or 0
     for index, config in enumerate(configs):
-        logger.info('testing config %s/%s' % (index, len(configs)))
+        logger.info('测试配置%s, 当前进度%s/%s' % (config, index, len(configs)))
         set_config(eval(config.config))
         web_speed = get_web_speed()
         if web_speed < WEB_SPEED:
             config.web_speed = web_speed
             download_speed = get_download_speed()
             if download_speed > avg_dl_speed:
+                logger.info('下载速度%s大于平均下载速度%s，发现优质链接' % (download_speed, avg_dl_speed))
                 config.download_speed = (config.download_speed + download_speed) / 2
                 config.status = 0
-                logger.info('updated speed with download_speed %s' % config.download_speed)
             else:
+                logger.info('下载速度%s小于平均下载速度%s，发现可用链接' % (download_speed, avg_dl_speed))
                 config.status = 1
         elif web_speed == 10:
+            logger.info('网络延迟测试超时，链接不可用')
             config.status = 2
         else:
+            logger.info('网络延迟%s大于预设阀值%s，发现可用链接' % (web_speed, WEB_SPEED))
             config.status = 1
         logger.info('config updated set status %s' % config.status)
         config.save()

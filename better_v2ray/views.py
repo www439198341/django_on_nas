@@ -51,7 +51,7 @@ def get_subscription_link(request):
 
 def is_renew():
     configs = SubscriptionModel.objects.filter(status=0)
-    if len(configs) < 10:
+    if len(configs) < 5:
         return True
     return False
 
@@ -73,12 +73,11 @@ def renew_subscription_link(request):
             logger.info('解析订阅地址%s' % url)
             tmp_links = get_share_links(url)
             tmp_dict = {'source_url': url, 'share_links': tmp_links}
-            logger.info('获得订阅地址%s' % tmp_links)
             share_links.append(tmp_dict)
-        logger.info('共解析获得server地址%s个' % len(share_links))
         get_config(share_links)
+        renew(target_status=(0,), avg_status=(0, 1))
 
     if is_renew():
-        renew()
+        renew((0, 1, 3))
 
     return HttpResponse(b'done')

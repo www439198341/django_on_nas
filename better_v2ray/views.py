@@ -14,13 +14,16 @@ from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
 
 def gen_update_time(return_type='base64'):
     count = SubscriptionModel.objects.filter(status=0).count()
-    json_content = {'name': '更新:%s,可用%s' % (time.strftime("%m-%d %H:%M", time.localtime()), count), 'type': 'ss',
-                    'server': '10.10.10.10', 'port': '3652', 'cipher': 'aes-256-gcm', 'password': '1'}
     if return_type == 'json':
+        json_content = {'name': '更新:%s,可用%s' % (time.strftime("%m-%d %H:%M", time.localtime()), count), 'type': 'ss',
+                        'server': 'does.not.exist', 'port': '886', 'cipher': 'aes-256-gcm', 'password': 'never need'}
         return json_content
     else:
+        json_content = {'v': '2', 'ps': '更新:%s,可用%s' % (time.strftime("%m-%d %H:%M", time.localtime()), count),
+                        'add': 'Flynn', 'port': '3652', 'id': '6a3bcc08-9c77-4c02-844b-4a694c4f2fea', 'aid': '0',
+                        'net': 'tcp', 'type': 'none', 'host': '', 'path': '', 'tls': '', 'sni': ''}
         str_content = json.dumps(json_content)
-        link_with_update_time = str(b'ss://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
+        link_with_update_time = str(b'vmess://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
         return link_with_update_time
 
 

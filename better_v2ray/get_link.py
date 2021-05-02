@@ -1,27 +1,18 @@
-import base64
+import hashlib
 import json
 import os
 import socket
 import time
 from base64 import b64decode
 from urllib.parse import urlsplit
-from urllib.request import urlopen
 
 import requests
 import socks
+from django.db.models import Avg
 
 from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger
-from local_settings import bwg, template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, DOWNLOAD_SPEED, VALID_PROTOCOL, \
-    ONLINE_URLS
-
-
-def gen_update_time(str_time):
-    json_content = {'v': '', 'ps': '更新于:%s - by Flynn' % str_time, 'add': '', 'port': '', 'id': '', 'aid': '',
-                    'net': '', 'type': '', 'host': '', 'path': '', 'tls': '', 'sni': ''}
-    str_content = json.dumps(json_content)
-    link_with_update_time = str(b'vmess://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
-    return link_with_update_time
+from local_settings import template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, VALID_PROTOCOL
 
 
 def read_vmess(splited_url):
@@ -183,11 +174,6 @@ def read_vless(splited_url):
         return None
 
 
-def get_share_links(return_content):
-    share_links = b64decode(return_content).decode('utf-8').splitlines()
-    return share_links
-
-
 def read_content(share_links) -> list:
     link_with_config = []
     for item in share_links:
@@ -250,71 +236,64 @@ def get_download_speed():
     return 10
 
 
-def get_best_config(share_links) -> dict:
+def get_config(share_links):
+    def get_md5(raw_str):
+        m = hashlib.md5()
+        m.update(raw_str.encode())
+        return m.hexdigest()
+
+    # insert config info into db. set status = 3(not tested)
     link_with_config = read_content(share_links)
-    best_links = {}
-    total_config_number = len(link_with_config)
-    for i in range(total_config_number):
-        tmp = link_with_config[i]
-        logger.info('testing config %s/%s' % (i, total_config_number))
-        set_config(tmp.get('config'))
+    for item in link_with_config:
+        if item and item.get('config'):
+            md5_info = get_md5(json.dumps(item.get('config')))
+            records = SubscriptionModel.objects.filter(md5_info=md5_info)
+            if len(records) == 0:
+                SubscriptionModel(
+                    source=item.get('source_url'),
+                    link=item.get('share_link'),
+                    config=item.get('config'),
+                    status=3,
+                    web_speed=9,
+                    download_speed=0,
+                    md5_info=md5_info
+                ).save()
+                logger.info('数据入库%s' % item)
+
+
+def renew():
+    """
+    对配置重新测速，并更新信息
+    :return:
+    """
+    configs = SubscriptionModel.objects.filter(status__in=(0, 1, 3))
+    avg_dl_speed = SubscriptionModel.objects.filter(status=0).aggregate(Avg('download_speed')).get(
+        'download_speed__avg') or 0
+    for index, config in enumerate(configs):
+        logger.info('testing config %s/%s' % (index, len(configs)))
+        set_config(eval(config.config))
         web_speed = get_web_speed()
         if web_speed < WEB_SPEED:
-            logger.info('web_speed--> %s' % web_speed)
+            config.web_speed = web_speed
             download_speed = get_download_speed()
-            status = 1
-            if download_speed > DOWNLOAD_SPEED:
-                logger.info('download_speed--> %s' % download_speed)
-                logger.info('find a fast link, add to best_links--> %s' % tmp.get('share_link'))
-                best_links[tmp.get('share_link')] = download_speed
-                status = 0
-            SubscriptionModel(
-                link=tmp.get('share_link'),
-                config=tmp.get('config'),
-                source=tmp.get('source_url'),
-                web_speed=web_speed,
-                download_speed=download_speed,
-                status=status
-            ).save()
-    return best_links
+            if download_speed > avg_dl_speed:
+                config.download_speed = (config.download_speed + download_speed) / 2
+                config.status = 0
+                logger.info('updated speed with download_speed %s' % config.download_speed)
+            else:
+                config.status = 1
+        elif web_speed == 10:
+            config.status = 2
+        else:
+            config.status = 1
+        logger.info('config updated set status %s' % config.status)
+        config.save()
 
 
-def gen_subscribe(urls, n):
-    start_time = time.strftime("%m-%d %H:%M", time.localtime())
-    share_links = []
-    for url in urls:
-        tmp_links = get_share_links(get_return_content(url))
-        tmp_dict = {'source_url': url, 'share_links': tmp_links}
-        share_links.append(tmp_dict)
-
-    best_links = get_best_config(share_links)
-    sorted_links = sorted(best_links.items(), key=lambda item: item[1], reverse=True)[:n]
-    end_time = time.strftime("%m-%d %H:%M", time.localtime())
-    link_str = '%s\n' % gen_update_time('start:%s;end:%s' % (start_time, end_time)) + '\n'.join(
-        link[0] for link in sorted_links)
-    link_b64 = base64.b64encode(link_str.encode('utf-8'))
-    return link_b64
-
-
-def set_default_v2ray():
-    logger.info('set_default_v2ray')
-    set_config(bwg)
-
-
-def get_return_content(url):
-    socks.setdefaultproxy(socks.SOCKS5, '127.0.0.1', 2333)
-    socket.socket = socks.socksocket
+def get_share_links(url):
     if 'api.github.com' in url:
         tmp = requests.get(url).json().get('content')
-        return b64decode(tmp).decode('utf-8')
-    return urlopen(url).read()
-
-
-def main(link_num=10):
-    set_default_v2ray()
-    c = gen_subscribe(ONLINE_URLS, link_num)
-    logger.info(c)
-
-
-if __name__ == '__main__':
-    main()
+        b_return = b64decode(tmp).decode('utf-8')
+    else:
+        b_return = requests.get(url).text
+    return b64decode(b_return).decode('utf-8').splitlines()

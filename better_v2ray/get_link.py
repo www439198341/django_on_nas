@@ -13,7 +13,7 @@ from django.db.models import Avg
 from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger
 from local_settings import template, WAIT_RESTART, TIME_LIMIT, WEB_SPEED, VALID_PROTOCOL, DELAY_TESTING_URL, \
-    DOWNLOAD_TEST_URL
+    DOWNLOAD_TEST_URL, bwg
 
 
 def read_vmess(splited_url):
@@ -308,3 +308,8 @@ def get_share_links(url):
     else:
         b_return = requests.get(url).text
     return b64decode(b_return).decode('utf-8').splitlines()
+
+
+def set_default_v2ray():
+    logger.info('set_default_v2ray')
+    set_config(bwg)

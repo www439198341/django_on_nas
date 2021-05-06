@@ -6,7 +6,7 @@ import time
 from django.http import HttpResponse, FileResponse
 
 from better_v2ray.convert2clash import get_proxies, get_default_config, add_proxies_to_model, save_config
-from better_v2ray.get_link import get_share_links, get_config, renew
+from better_v2ray.get_link import get_share_links, get_config, renew, set_default_v2ray
 from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger, BASE_DIR
 from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
@@ -76,6 +76,7 @@ def renew_subscription_link(request):
     """
 
     if is_download():
+        set_default_v2ray()
         share_links = []
         for url in ONLINE_URLS:
             logger.info('解析订阅地址%s' % url)

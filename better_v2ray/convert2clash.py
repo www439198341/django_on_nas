@@ -135,13 +135,15 @@ def decode_trojan_node(nodes):
             log('trojan节点信息为空，跳过该节点')
             continue
         info = dict()
-        matcher = re.match(r'(.*?)@(.*):(.*)\?(.*)#(.*)', decode_proxy)
+        if '?' in decode_proxy:
+            matcher = re.match(r'(.*?)@(.*):(.*)\?(.*)', decode_proxy)
+        else:
+            matcher = re.match(r'(.*?)@(.*):(.*)#(.*)', decode_proxy)
         if matcher:
             info['password'] = matcher.group(1)
             info['server'] = matcher.group(2)
             info['port'] = matcher.group(3)
-            info[matcher.group(4).split('=')[0]] = matcher.group(4).split('=')[1]
-            info['name'] = urllib.parse.unquote(matcher.group(5))
+            info['name'] = urllib.parse.unquote(matcher.group(4).split('#')[-1])
         else:
             continue
         proxy_list.append(info)
@@ -346,21 +348,26 @@ def get_proxies(urls):
                 trojan_urls.append(node)
             else:
                 pass
-        clash_node = []
         if len(v2ray_urls) > 0:
             decode_proxy = decode_v2ray_node(v2ray_urls)
             clash_node = v2ray_to_clash(decode_proxy)
+            proxy_list['proxy_list'].extend(clash_node['proxy_list'])
+            proxy_list['proxy_names'].extend(clash_node['proxy_names'])
         if len(ss_urls) > 0:
             decode_proxy = decode_ss_node(ss_urls)
             clash_node = ss_to_clash(decode_proxy)
+            proxy_list['proxy_list'].extend(clash_node['proxy_list'])
+            proxy_list['proxy_names'].extend(clash_node['proxy_names'])
         if len(ssr_urls) > 0:
             decode_proxy = decode_ssr_node(ssr_urls)
             clash_node = ssr_to_clash(decode_proxy)
+            proxy_list['proxy_list'].extend(clash_node['proxy_list'])
+            proxy_list['proxy_names'].extend(clash_node['proxy_names'])
         if len(trojan_urls) > 0:
             decode_proxy = decode_trojan_node(trojan_urls)
             clash_node = trojan_to_clash(decode_proxy)
-        proxy_list['proxy_list'].extend(clash_node['proxy_list'])
-        proxy_list['proxy_names'].extend(clash_node['proxy_names'])
+            proxy_list['proxy_list'].extend(clash_node['proxy_list'])
+            proxy_list['proxy_names'].extend(clash_node['proxy_names'])
     log('共发现:{}个节点'.format(len(proxy_list['proxy_names'])))
     return proxy_list
 

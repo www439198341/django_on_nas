@@ -11,6 +11,8 @@ from better_v2ray.models import SubscriptionModel
 from django_on_nas.settings import logger, BASE_DIR
 from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
 
+output_path = os.path.join(BASE_DIR, 'output.yaml')
+
 
 def gen_update_time(return_type='base64'):
     count = SubscriptionModel.objects.filter(status=0).count()
@@ -34,18 +36,7 @@ def get_subscription_link(request):
     logger.info('num-->%s, quality-->%s' % (num, quality))
     configs = SubscriptionModel.objects.filter(status__lte=quality).order_by('-download_speed')[:num]
     if target == 'clash':
-        sub_url = SUB_URL % (num, quality)
-        # 输出路径
-        config_path = os.path.join(BASE_DIR, 'template.yaml')
-        output_path = os.path.join(BASE_DIR, 'output.yaml')
-        node_list = get_proxies(sub_url)
-        default_config = get_default_config(config_path)
-        final_config = add_proxies_to_model(node_list, default_config)
-        update_info = gen_update_time('json')
-        final_config.get('proxies').append(update_info)
-        final_config.get('proxy-groups')[0].get('proxies').append(update_info.get('name'))
-        save_config(output_path, final_config)
-        logger.info(f'文件已导出至 {output_path}')
+        set_yaml_file(num, quality)
         file = open(output_path, 'rb')
         response = FileResponse(file)
         response['Content-Type'] = 'application/octet-stream'
@@ -70,6 +61,18 @@ def is_download():
     return False
 
 
+def set_yaml_file(num, quality):
+    sub_url = SUB_URL % (num, quality)
+    # 输出路径
+    config_path = os.path.join(BASE_DIR, 'template.yaml')
+    node_list = get_proxies(sub_url)
+    logger.info('node_list, %s' % node_list)
+    default_config = get_default_config(config_path)
+    final_config = add_proxies_to_model(node_list, default_config)
+    save_config(output_path, final_config)
+    logger.info(f'文件已导出至 {output_path}')
+
+
 def renew_subscription_link(request):
     """
     读取并测试数据库中已有的配置，更新其速度/或删除配置，若配置数不足10条，则从网络上获取并更新入库
@@ -88,5 +91,8 @@ def renew_subscription_link(request):
 
     if is_renew():
         renew((0, 1, 3))
+
+    # 生成配置文件并送到远端保存
+    set_yaml_file(100, 1)
 
     return HttpResponse(b'done')

@@ -254,8 +254,7 @@ def get_config(share_links):
         if item and item.get('config'):
             md5_info = get_md5(json.dumps(item.get('config')))
             records = SubscriptionModel.objects.filter(md5_info=md5_info)
-            if len(records) == 0:
-                count += 1
+            if len(records) == 0:  # 如果没有相同md5的数据，则新数据入库
                 SubscriptionModel(
                     source=item.get('source_url'),
                     link=item.get('share_link'),
@@ -266,6 +265,13 @@ def get_config(share_links):
                     md5_info=md5_info
                 ).save()
                 logger.info('数据入库%s' % item)
+            else:  # 否则更其起状态为3/web_speed为9/download_speed为0
+                record = SubscriptionModel.objects.get(md5_info=md5_info)
+                record.status = 3
+                record.web_speed = 9
+                record.download_speed = 0
+                record.save()
+            count += 1
     logger.info('共入库%s条数据' % count)
     return count
 

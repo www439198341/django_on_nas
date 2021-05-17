@@ -342,8 +342,8 @@ def get_proxies(urls):
                 v2ray_urls.append(node)
             elif node.startswith(b'ss://'):
                 ss_urls.append(node)
-            elif node.startswith(b'ssr://'):
-                ssr_urls.append(node)
+            # elif node.startswith(b'ssr://'):
+            #     ssr_urls.append(node)
             elif node.startswith(b'trojan://'):
                 trojan_urls.append(node)
             else:
@@ -358,11 +358,11 @@ def get_proxies(urls):
             clash_node = ss_to_clash(decode_proxy)
             proxy_list['proxy_list'].extend(clash_node['proxy_list'])
             proxy_list['proxy_names'].extend(clash_node['proxy_names'])
-        if len(ssr_urls) > 0:
-            decode_proxy = decode_ssr_node(ssr_urls)
-            clash_node = ssr_to_clash(decode_proxy)
-            proxy_list['proxy_list'].extend(clash_node['proxy_list'])
-            proxy_list['proxy_names'].extend(clash_node['proxy_names'])
+        # if len(ssr_urls) > 0:
+        #     decode_proxy = decode_ssr_node(ssr_urls)
+        #     clash_node = ssr_to_clash(decode_proxy)
+        #     proxy_list['proxy_list'].extend(clash_node['proxy_list'])
+        #     proxy_list['proxy_names'].extend(clash_node['proxy_names'])
         if len(trojan_urls) > 0:
             decode_proxy = decode_trojan_node(trojan_urls)
             clash_node = trojan_to_clash(decode_proxy)

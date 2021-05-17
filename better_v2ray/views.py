@@ -86,8 +86,11 @@ def renew_subscription_link(request):
             tmp_links = get_share_links(url)
             tmp_dict = {'source_url': url, 'share_links': tmp_links}
             share_links.append(tmp_dict)
-        get_config(share_links)
-        renew(target_status=(0,), avg_status=(0, 1))
+        count = get_config(share_links)
+        if count < 10:  # 如果获得到新链接小于10个，即所有链接都已有数据库记录，无法获得新链接，则更新全部已有链接信息。
+            renew(target_status=(0, 1, 2))
+        else:
+            renew(target_status=(0,), avg_status=(0, 1))
 
     if is_renew():
         renew((0, 1, 3))

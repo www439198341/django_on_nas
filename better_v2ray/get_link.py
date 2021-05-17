@@ -267,6 +267,7 @@ def get_config(share_links):
                 ).save()
                 logger.info('数据入库%s' % item)
     logger.info('共入库%s条数据' % count)
+    return count
 
 
 def renew(target_status: tuple, avg_status: tuple = (0,)):

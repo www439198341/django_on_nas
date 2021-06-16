@@ -1,13 +1,12 @@
 import hashlib
 import json
 import os
-import socket
+import subprocess
 import time
 from base64 import b64decode
 from urllib.parse import urlsplit
 
 import requests
-import socks
 from django.db.models import Avg
 
 from better_v2ray.models import SubscriptionModel
@@ -212,16 +211,12 @@ def set_config(config: dict, config_file='/usr/local/etc/v2ray/config.json'):
 
 def get_web_speed():
     logger.info('testing web speed ...')
-    start = time.time()
-    socks.setdefaultproxy(socks.SOCKS5, '127.0.0.1', 2333)
-    socket.socket = socks.socksocket
-    try:
-        requests.get(DELAY_TESTING_URL, timeout=TIME_LIMIT)
-    except Exception as e:
-        logger.error(e)
-        return 10
-    end = time.time()
-    web_speed = end - start
+    cmd = "curl -sw '%{time_total}\n' " + DELAY_TESTING_URL
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+    out, err = p.communicate()
+    web_speed = 10
+    if p.returncode == 0:
+        web_speed = str(out, encoding='utf-8').replace('\n', '')
     logger.info('到%s的延迟为%.2fms' % (DELAY_TESTING_URL, web_speed * 1000))
     return web_speed
 

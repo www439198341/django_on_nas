@@ -4,10 +4,11 @@ import os
 import time
 
 from django.http import HttpResponse, FileResponse
+from django.utils import timezone
 
 from better_v2ray.convert2clash import get_proxies, get_default_config, add_proxies_to_model, save_config
 from better_v2ray.get_link import get_share_links, get_config, renew, set_default_v2ray
-from better_v2ray.models import SubscriptionModel
+from better_v2ray.models import SubscriptionModel, Record
 from django_on_nas.settings import logger, BASE_DIR
 from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
 
@@ -22,8 +23,8 @@ def gen_update_time(return_type='base64'):
         return json_content
     else:
         json_content = {'v': '2', 'ps': '更新:%s,可用%s' % (time.strftime("%m-%d %H:%M", time.localtime()), count),
-                        'add': 'Flynn', 'port': '3652', 'id': '6a3bcc08-9c77-4c02-844b-4a694c4f2fea', 'aid': '0',
-                        'net': 'tcp', 'type': 'none', 'host': '', 'path': '', 'tls': '', 'sni': ''}
+                        'add': 'does.not.exist', 'port': '886', 'id': '6a3bcc08-9c77-4c02-844b-4a694c4f2fea',
+                        'aid': '0', 'net': 'tcp', 'type': 'none', 'host': '', 'path': '', 'tls': '', 'sni': ''}
         str_content = json.dumps(json_content)
         link_with_update_time = str(b'vmess://' + base64.b64encode(str_content.encode('utf-8')), encoding='utf-8')
         return link_with_update_time
@@ -77,8 +78,11 @@ def renew_subscription_link(request):
     """
     读取并测试数据库中已有的配置，更新其速度/或删除配置，若配置数不足10条，则从网络上获取并更新入库
     """
-
+    is_download_flag = False
+    is_renew_flag = False
+    start_time = timezone.now()
     if is_download():
+        is_download_flag = True
         set_default_v2ray()
         share_links = []
         for url in ONLINE_URLS:
@@ -93,8 +97,19 @@ def renew_subscription_link(request):
             renew(target_status=(0,), avg_status=(0, 1))
 
     if is_renew():
+        is_renew_flag = True
         renew((0, 1, 3))
-
+    end_time = timezone.now()
+    # 入库节点更新信息
+    Record(
+        start_time=start_time,
+        end_time=end_time,
+        is_download=is_download_flag,
+        is_renew=is_renew_flag,
+        better_node_count=SubscriptionModel.objects.filter(status=0).count(),
+        normal_node_count=SubscriptionModel.objects.filter(status=1).count(),
+        dead_node_count=SubscriptionModel.objects.filter(status=2).count(),
+    ).save()
     # 生成配置文件并送到远端保存
     set_yaml_file(100, 1)
 

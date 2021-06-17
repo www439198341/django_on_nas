@@ -211,14 +211,19 @@ def set_config(config: dict, config_file='/usr/local/etc/v2ray/config.json'):
 
 def get_web_speed():
     logger.info('testing web speed ...')
-    cmd = "curl -sw '%{time_total}\n' " + DELAY_TESTING_URL
+    cmd = "curl -m 1 -o /dev/null -s -w '%{time_total}\n' " + DELAY_TESTING_URL
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
     out, err = p.communicate()
-    web_speed = 10
     if p.returncode == 0:
         web_speed = str(out, encoding='utf-8').replace('\n', '')
-    logger.info('到%s的延迟为%.2fms' % (DELAY_TESTING_URL, web_speed * 1000))
-    return web_speed
+        print('web_speed-->{}'.format(web_speed))
+        try:
+            web_speed = float(web_speed)
+            logger.info('到{}的延迟为{:.2f}ms'.format(DELAY_TESTING_URL, web_speed * 1000))
+            return web_speed
+        except ValueError:
+            return 10
+    return 10
 
 
 def get_download_speed():

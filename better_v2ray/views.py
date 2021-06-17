@@ -10,7 +10,7 @@ from better_v2ray.convert2clash import get_proxies, get_default_config, add_prox
 from better_v2ray.get_link import get_share_links, get_config, renew, set_default_v2ray
 from better_v2ray.models import SubscriptionModel, Record
 from django_on_nas.settings import logger, BASE_DIR
-from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM
+from local_settings import ONLINE_URLS, SUB_URL, GOOD_LINK_NUM, DOWNLOAD_INTERVAL
 
 output_path = os.path.join(BASE_DIR, 'output.yaml')
 
@@ -50,16 +50,20 @@ def get_subscription_link(request):
 
 
 def is_renew():
+    res = False
     configs = SubscriptionModel.objects.filter(status=0)
     if len(configs) < GOOD_LINK_NUM:
-        return True
-    return False
+        res = True
+    logger.info('len(configs) is {}, is_renew is {}'.format(len(configs), res))
+    return res
 
 
 def is_download():
-    if time.localtime().tm_hour % 2 == 1:
-        return True
-    return False
+    res = False
+    if time.localtime().tm_hour % DOWNLOAD_INTERVAL == 0:
+        res = True
+    logger.info('is_download is {}'.format(res))
+    return res
 
 
 def set_yaml_file(num, quality):
@@ -87,9 +91,12 @@ def renew_subscription_link(request):
         share_links = []
         for url in ONLINE_URLS:
             logger.info('解析订阅地址%s' % url)
-            tmp_links = get_share_links(url)
-            tmp_dict = {'source_url': url, 'share_links': tmp_links}
-            share_links.append(tmp_dict)
+            try:
+                tmp_links = get_share_links(url)
+                tmp_dict = {'source_url': url, 'share_links': tmp_links}
+                share_links.append(tmp_dict)
+            except Exception as e:
+                logger.exception(e)
         count = get_config(share_links)
         if count < 10:  # 如果获得到新链接小于10个，即所有链接都已有数据库记录，无法获得新链接，则更新全部已有链接信息。
             renew(target_status=(0, 1, 2))
